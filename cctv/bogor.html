@@ -1,53 +1,125 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
-    <title>Video Streaming HLS Dinamis</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar CCTV Kota Bogor</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 100%; /* Memastikan kontainer mengisi seluruh lebar */
+            margin: 0 auto;
+            display: grid;
+            gap: 20px; /* Jarak antar video yang lebih kecil */
+            /* Mengubah lebar minimum player menjadi 300px */
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+        }
+        .video-player-card {
+            background-color: #ffffff;
+            border-radius: 12px;
+            /* Mengurangi border menjadi lebih tipis */
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); 
+            overflow: hidden;
+            padding: 15px;
+            text-align: center;
+        }
+        h3 {
+            color: #333;
+            margin-top: 0;
+            margin-bottom: 10px;
+            /* Ukuran font judul yang lebih kecil */
+            font-size: 0.9em; 
+        }
+        video {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            background-color: #000;
+        }
+    </style>
 </head>
 <body>
+    
+    <div class="container" id="video-container">
+        <!-- Pemutar video akan dibuat di sini secara dinamis oleh JavaScript -->
+    </div>
 
-    <video id="videoElement" controls autoplay muted width="640" height="360"></video>
-
+    <!-- Library Hls.js -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
     <script>
-        // Fungsi untuk mendapatkan parameter dari URL
-        function getParameterByName(name, url = window.location.href) {
-            name = name.replace(/[\[\]]/g, '\\$&');
-            var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
-                results = regex.exec(url);
-            if (!results) return null;
-            if (!results[2]) return '';
-            return decodeURIComponent(results[2].replace(/\+/g, ' '));
-        }
+        // Data daftar video yang Anda berikan
+        const videoData = [
+            { title: 'BTM Simpang BTM arah Juanda', streamId: '7f86312d-fc35-4700-9bd1-2a624b13d111' },
+            { title: 'Tugu Kujang arah Pasar Bogor', streamId: 'aedb3f80-3355-411f-a8fa-08320766c07a' },
+            { title: 'Dari Arah Tugu Kujang ke Jembatan Otista', streamId: '1dd9dac0-e6db-40b6-ae39-59717fdeeeb7' },
+            { title: 'DEPAN ALUN-ALUN', streamId: 'f87270e1-45f7-4cbd-9e6c-4000b66e39e9' },
+            { title: 'ARAH CIHELEUT', streamId: 'e167c204-5ff8-4f58-ad24-50f4fd2ef004' },
+            { title: 'Simpang Tiga Lawang Gintung', streamId: '8be48917-2090-4de7-aa35-7c01d28e16be' },
+            { title: 'Depan Masjid Raya', streamId: '0da67044-cfaa-4ba1-be9a-795fc0c23ea1' },
+            { title: 'ARAH GANG AUT', streamId: 'b7e99f5a-85a1-48be-b06f-65904cd5fa7e' },
+            { title: 'Depan Dinas Perhubungan arah Ke Ciawi', streamId: '1a250cb5-3fb7-41c8-962d-5a3fe2540ae8' },
+            { title: 'Simpang Tiga Pancasan Arah Jalan Empang Pasir Kuda', streamId: '6515d5ea-e7b3-4824-b123-f8c9ebec562e' },
+            { title: 'SIMPANG EMPANG', streamId: '9257bf6b-389c-424d-8eff-771add34d205' },
+            { title: 'SIMPANG EMPANG', streamId: '7cf529b4-19f1-4af5-ba43-fe6f370360b7' },
+            { title: 'ARAH SURKEN', streamId: '3b117452-5d6e-4291-9500-0ac9294532f4' },
+            { title: 'Pedati Arah Lawang Gintung', streamId: '8ca5344d-e8a4-4d31-89e1-08a90fd946bf' },
+            { title: 'Surken Arah Lawang Seketeng', streamId: '6d054ad5-615c-4102-959c-cbb3052f60fc' },
+            { title: 'Pedati Arah Surken', streamId: '01ef5275-d900-495d-af21-16b8dbdf5527' },
+            { title: 'Pedati Arah Kec.Gudang', streamId: 'b167ec19-ccb2-490d-a607-f2daf4a8500f' },
+            { title: 'Seketeng Arah Gudang', streamId: '9a989853-75e6-4730-81ba-45aa7872087a' },
+            { title: 'CCTV Pendestrian Arah Denpom', streamId: '33b9d9af-a5c0-47e7-b3c1-1566233d6da2' },
+            { title: 'CCTV Simpang Denpom', streamId: '35336564-5b50-489b-a7a6-5e2ab3a5d023' },
+            { title: 'CCTV Simpang RS Salak', streamId: 'e24f5b08-0783-417c-ac7c-9d92f546abe9' },
+            { title: 'JALN SURYA KENCANA', streamId: 'c6700d06-4fc7-4814-9569-84238dd80064' },
+            { title: 'SUKASARI', streamId: 'a9090a08-fac4-4c24-9cf3-8ab9a116e93f' },
+            { title: 'Jalan Jalak Harupat', streamId: 'c048edf7-bce5-4bd2-8329-668ee45734b8' },
+            { title: 'ALUN ALUN KOTA BOGOR', streamId: 'c99660a9-dcf0-4478-82a3-1fbe56d64a18' },
+            { title: 'Depan BRI ALUN ALUN', streamId: 'edb21388-4126-4ab3-b4a6-0890f91ab0dc' },
+            { title: 'BRI ALUN ALUN KOTA BOGOR', streamId: '39eeee19-d18a-4303-b883-dbc966d51781' }
+        ];
 
-        // Ambil ID dari URL, misalnya 'id=1dd9dac0-e6db-40b6-ae39-59717fdeeeb7'
-        var streamId = getParameterByName('id');
+        // Dapatkan elemen kontainer tempat video akan ditempatkan
+        const videoContainer = document.getElementById('video-container');
 
-        if (streamId) {
-            var video = document.getElementById('videoElement');
-            var videoSrc = 'https://restreamer.kotabogor.go.id/memfs/' + streamId + '.m3u8';
-            
+        // Loop melalui data video dan buat pemutar untuk setiap entri
+        videoData.forEach((videoInfo, index) => {
+            const playerCard = document.createElement('div');
+            playerCard.className = 'video-player-card';
+
+            const videoTitle = document.createElement('h3');
+            videoTitle.textContent = videoInfo.title;
+
+            const videoElement = document.createElement('video');
+            videoElement.id = `videoPlayer-${index}`;
+            videoElement.setAttribute('controls', '');
+            // Menghapus atribut 'autoplay' dan 'muted'
+            videoElement.setAttribute('playsinline', ''); 
+
+            playerCard.appendChild(videoTitle);
+            playerCard.appendChild(videoElement);
+            videoContainer.appendChild(playerCard);
+
+            // Inisialisasi Hls.js untuk pemutar video yang baru dibuat
+            const videoSrc = `https://restreamer.kotabogor.go.id/memfs/${videoInfo.streamId}.m3u8`;
             if (Hls.isSupported()) {
-                var hls = new Hls();
+                const hls = new Hls();
                 hls.loadSource(videoSrc);
-                hls.attachMedia(video);
-                hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                    video.play();
-                });
-            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                hls.attachMedia(videoElement);
+                // Menghapus panggilan videoElement.play()
+            } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
                 // Untuk browser yang mendukung HLS secara native (seperti Safari)
-                video.src = videoSrc;
-                video.addEventListener('loadedmetadata', function() {
-                    video.play();
-                });
+                videoElement.src = videoSrc;
+                // Menghapus panggilan videoElement.play()
             } else {
-                console.log("Browser Anda tidak mendukung HLS.");
+                console.error(`Browser tidak mendukung HLS untuk video: ${videoInfo.title}`);
             }
-        } else {
-            console.log("Parameter ID tidak ditemukan di URL.");
-            // Anda bisa menampilkan pesan atau fallback lainnya di sini
-            document.body.innerHTML = "<h1>Parameter ID tidak ditemukan. Silakan berikan ID video di URL.</h1>";
-        }
+        });
     </script>
 
 </body>
