@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Streaming HLS Dinamis</title>
+</head>
+<body>
+
+    <video id="videoElement" controls autoplay muted width="640" height="360"></video>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+    <script>
+        // Fungsi untuk mendapatkan parameter dari URL
+        function getParameterByName(name, url = window.location.href) {
+            name = name.replace(/[\[\]]/g, '\\$&');
+            var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
+                results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, ' '));
+        }
+
+        // Ambil ID dari URL, misalnya 'id=1dd9dac0-e6db-40b6-ae39-59717fdeeeb7'
+        var streamId = getParameterByName('id');
+
+        if (streamId) {
+            var video = document.getElementById('videoElement');
+            var videoSrc = 'https://restreamer.kotabogor.go.id/memfs/' + streamId + '.m3u8';
+            
+            if (Hls.isSupported()) {
+                var hls = new Hls();
+                hls.loadSource(videoSrc);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    video.play();
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Untuk browser yang mendukung HLS secara native (seperti Safari)
+                video.src = videoSrc;
+                video.addEventListener('loadedmetadata', function() {
+                    video.play();
+                });
+            } else {
+                console.log("Browser Anda tidak mendukung HLS.");
+            }
+        } else {
+            console.log("Parameter ID tidak ditemukan di URL.");
+            // Anda bisa menampilkan pesan atau fallback lainnya di sini
+            document.body.innerHTML = "<h1>Parameter ID tidak ditemukan. Silakan berikan ID video di URL.</h1>";
+        }
+    </script>
+
+</body>
+</html>
