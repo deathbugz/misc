@@ -16,14 +16,14 @@
             margin: 0 auto;
             display: grid;
             gap: 20px; /* Jarak antar video yang lebih kecil */
-            /* Mengubah lebar minimum player menjadi 300px */
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+            /* Mengubah lebar minimum player menjadi 350px */
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); 
         }
         .video-player-card {
             background-color: #ffffff;
             border-radius: 12px;
-            /* Mengurangi border menjadi lebih tipis */
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); 
+            /* Mengurangi border menjadi sangat tipis */
+            box-shadow: 0 0.5px 0.5px rgba(0, 0, 0, 0.03); 
             overflow: hidden;
             padding: 15px;
             text-align: center;
@@ -87,8 +87,8 @@
         // Dapatkan elemen kontainer tempat video akan ditempatkan
         const videoContainer = document.getElementById('video-container');
 
-        // Loop melalui data video dan buat pemutar untuk setiap entri
-        videoData.forEach((videoInfo, index) => {
+        // Fungsi untuk membuat dan menginisialisasi pemutar video
+        function createAndInitPlayer(videoInfo, index) {
             const playerCard = document.createElement('div');
             playerCard.className = 'video-player-card';
 
@@ -98,28 +98,47 @@
             const videoElement = document.createElement('video');
             videoElement.id = `videoPlayer-${index}`;
             videoElement.setAttribute('controls', '');
-            // Menghapus atribut 'autoplay' dan 'muted'
             videoElement.setAttribute('playsinline', ''); 
 
             playerCard.appendChild(videoTitle);
             playerCard.appendChild(videoElement);
             videoContainer.appendChild(playerCard);
 
-            // Inisialisasi Hls.js untuk pemutar video yang baru dibuat
             const videoSrc = `https://restreamer.kotabogor.go.id/memfs/${videoInfo.streamId}.m3u8`;
             if (Hls.isSupported()) {
                 const hls = new Hls();
                 hls.loadSource(videoSrc);
                 hls.attachMedia(videoElement);
-                // Menghapus panggilan videoElement.play()
             } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-                // Untuk browser yang mendukung HLS secara native (seperti Safari)
                 videoElement.src = videoSrc;
-                // Menghapus panggilan videoElement.play()
             } else {
                 console.error(`Browser tidak mendukung HLS untuk video: ${videoInfo.title}`);
             }
-        });
+        }
+
+        // Fungsi untuk menghapus semua pemutar video yang ada
+        function removeAllPlayers() {
+            while (videoContainer.firstChild) {
+                videoContainer.removeChild(videoContainer.firstChild);
+            }
+        }
+        
+        // Fungsi utama untuk memuat semua video
+        function loadAllVideos() {
+            removeAllPlayers(); // Hapus pemutar video yang ada sebelum memuat yang baru
+            videoData.forEach((videoInfo, index) => {
+                createAndInitPlayer(videoInfo, index);
+            });
+        }
+
+        // Panggil fungsi untuk memuat video saat halaman pertama kali dibuka
+        loadAllVideos();
+
+        // Jadwalkan refresh halaman setiap 2 menit (120000 milidetik)
+        setInterval(function() {
+            console.log("Refreshing video players...");
+            loadAllVideos();
+        }, 120000);
     </script>
 
 </body>
