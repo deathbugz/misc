@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live CCTV Monitor - Molecool</title>
+    <title>Live CCTV Monitor - Molecool (Hybrid Proxy)</title>
     <!-- Menggunakan Tailwind CSS untuk styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -53,7 +53,7 @@
         <header class="mb-6 flex justify-between items-center flex-wrap gap-4">
             <div>
                 <h1 id="main-title" class="text-3xl font-bold text-white">Live CCTV Monitor</h1>
-                <p class="text-gray-400">Menampilkan feed dari <a href="https://molecool.id/live-cctv/" target="_blank" class="text-blue-400 hover:underline">molecool.id/live-cctv</a> (via My Proxy)</p>
+                <p class="text-gray-400">Menampilkan feed dari <a href="https://molecool.id/live-cctv/" target="_blank" class="text-blue-400 hover:underline">molecool.id/live-cctv</a></p>
             </div>
             <div id="status-container" class="text-right">
                 <div class="flex items-center gap-3 justify-end">
@@ -87,6 +87,8 @@
         const mainTitle = document.getElementById('main-title');
 
         const TARGET_URL = "https://molecool.id/live-cctv/";
+        const MY_WORKER_URL = "https://nyam.ta-danial.workers.dev"; // Proxy Anda untuk gambar
+        const PAGE_PROXY_URL = "https://api.codetabs.com/v1/proxy/"; // Proxy untuk halaman
         const REFRESH_INTERVAL_MS = 60000;
 
         const displayedCCTVs = {};
@@ -137,7 +139,7 @@
                 outputElement.appendChild(cctv.element);
             });
             
-            updateTitleCount(); // Perbarui jumlah di judul
+            updateTitleCount();
         };
 
         const refreshAllImages = () => {
@@ -146,8 +148,10 @@
             for (const cctv of Object.values(displayedCCTVs)) {
                 const imgElement = cctv.element.querySelector('img');
                 if (imgElement) {
-                    let originalUrl = cctv.imageUrl.split('&_cacheBust=')[0];
-                    imgElement.src = `${originalUrl}&_cacheBust=${now}`;
+                    const originalUrl = cctv.imageUrl.split('&_cacheBust=')[0];
+                    const urlWithCacheBust = `${originalUrl}&_cacheBust=${now}`;
+                    // Gunakan proxy worker Anda untuk merefresh gambar
+                    imgElement.src = `${MY_WORKER_URL}/?quest=${encodeURIComponent(urlWithCacheBust)}`;
                 }
             }
         };
@@ -162,12 +166,9 @@
                  statusIndicator.innerHTML = '<div id="loader-update"></div> <span class="text-gray-400">Memeriksa pembaruan...</span>';
             }
             
-            // ===== GANTI URL DI SINI =====
-            // Ganti URL ini dengan URL Cloudflare Worker Anda
-            const MY_PROXY_URL = "https://nyam.ta-danial.workers.dev"; 
-            const proxyUrl = `${MY_PROXY_URL}/?quest=${encodeURIComponent(TARGET_URL)}`;
-            // =============================
-
+            // Gunakan Codetabs untuk mengambil halaman HTML
+            const proxyUrl = `${PAGE_PROXY_URL}?quest=${TARGET_URL}`;
+            
             const fetchTime = new Date();
             let imagesProcessed = 0;
             let success = false;
@@ -207,7 +208,7 @@
                         const cardElement = createCCTVCard(imageUrl, title, fetchTime, liveUrl);
                         displayedCCTVs[title] = {
                             title: title,
-                            imageUrl: imageUrl,
+                            imageUrl: imageUrl, // Simpan URL asli
                             liveUrl: liveUrl,
                             element: cardElement,
                             lastSeen: fetchTime
@@ -221,11 +222,12 @@
                         const timeElement = existingCCTV.element.querySelector('.last-seen-time');
                         if(timeElement) timeElement.textContent = formatTime(fetchTime);
                         const img = existingCCTV.element.querySelector('img');
-                        if (img && img.src !== imageUrl) img.src = imageUrl;
-                        const link = existingCCTV.element.querySelector('a');
-                        if (link && link.href !== imageUrl) link.href = imageUrl; // Updates the image link
+                        // Gunakan proxy Anda untuk memperbarui gambar jika URL berubah
+                        const proxiedImageUrl = `${MY_WORKER_URL}/?quest=${encodeURIComponent(imageUrl)}`;
+                        if (img && img.src !== proxiedImageUrl) img.src = proxiedImageUrl;
+
                         const liveLink = existingCCTV.element.querySelector('.live-link');
-                        if (liveLink && liveLink.href !== liveUrl) liveLink.href = liveUrl; // Updates the "open live" link
+                        if (liveLink && liveLink.href !== liveUrl) liveLink.href = liveUrl;
                     }
                 });
 
@@ -262,9 +264,12 @@
             const card = document.createElement('div');
             card.className = 'cctv-card bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col';
             
+            // Gunakan proxy worker Anda untuk menampilkan gambar
+            const proxiedImageUrl = `${MY_WORKER_URL}/?quest=${encodeURIComponent(imageUrl)}`;
+
             card.innerHTML = `
-                <a href="${imageUrl}" target="_blank">
-                    <img src="${imageUrl}" alt="${title}" class="w-full h-40 object-cover" loading="lazy">
+                <a href="${proxiedImageUrl}" target="_blank">
+                    <img src="${proxiedImageUrl}" alt="${title}" class="w-full h-40 object-cover" loading="lazy">
                 </a>
                 <div class="p-4 flex-grow flex flex-col justify-between">
                     <div>
@@ -286,7 +291,7 @@
                 setTimeout(() => {
                     card.remove();
                     delete displayedCCTVs[title];
-                    updateTitleCount(); // Perbarui jumlah setelah menghapus
+                    updateTitleCount();
                 }, 500);
             };
             return card;
