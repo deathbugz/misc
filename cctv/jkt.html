@@ -11,14 +11,6 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        #loader-initial {
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #3b82f6;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-        }
         #loader-update {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #10b981;
@@ -44,22 +36,46 @@
             from { opacity: 0; transform: scale(0.95); }
             to { opacity: 1; transform: scale(1); }
         }
+
+        /* Efek glowing untuk kartu baru dengan warna kuning */
+        .newly-added {
+            animation: fadeIn 0.5s ease-out, glow 1.5s ease-in-out 5; /* Jalankan glow 5 kali */
+        }
+        @keyframes glow {
+            0%, 100% {
+                box-shadow: 0 0 4px 1px rgba(250, 204, 21, 0.3); /* Tailwind amber-400 */
+            }
+            50% {
+                box-shadow: 0 0 12px 4px rgba(250, 204, 21, 0.7); /* Tailwind amber-400 */
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
 
-    <div class="w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div class="w-full max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
         
-        <header class="mb-6 flex justify-between items-center flex-wrap gap-4">
-            <div>
+        <header class="mb-6 flex items-center justify-between flex-wrap gap-6">
+            <!-- Sisi Kiri: Judul -->
+            <div class="flex-shrink-0">
                 <h1 id="main-title" class="text-3xl font-bold text-white">Live CCTV Monitor</h1>
                 <p class="text-gray-400">Menampilkan feed dari <a href="https://molecool.id/live-cctv/" target="_blank" class="text-blue-400 hover:underline">molecool.id/live-cctv</a></p>
             </div>
-            <div id="status-container" class="text-right">
+
+            <!-- Tengah: Filter Input (Dinamis) -->
+            <div class="flex-grow min-w-0 px-4">
+                 <input type="search" id="filter-input" placeholder="Cari berdasarkan judul..." class="w-full max-w-lg mx-auto block bg-gray-700 text-white placeholder-gray-400 border border-gray-600 rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500 transition">
+            </div>
+
+            <!-- Sisi Kanan: Status & Tombol -->
+            <div id="status-container" class="text-right flex-shrink-0">
                 <div class="flex items-center gap-3 justify-end">
                     <div id="status-indicator" class="flex items-center gap-2">
                         <!-- Loader atau status akan muncul di sini -->
                     </div>
+                    <button id="pause-toggle-btn" class="bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 px-3 rounded-lg text-sm transition-colors">
+                        Pause
+                    </button>
                     <button id="manual-update-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
                         Update Now
                     </button>
@@ -72,8 +88,8 @@
             </div>
         </header>
 
-        <!-- Output Area for Images -->
-        <div id="output" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 min-h-[50vh]">
+        <!-- Output Area for Images with Responsive Grid -->
+        <div id="output" class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-6">
             <!-- Kartu CCTV akan ditampilkan di sini -->
         </div>
     </div>
@@ -84,15 +100,19 @@
         const lastUpdatedElement = document.getElementById('last-updated');
         const countdownElement = document.getElementById('countdown-timer');
         const manualUpdateBtn = document.getElementById('manual-update-btn');
+        const pauseToggleBtn = document.getElementById('pause-toggle-btn');
         const mainTitle = document.getElementById('main-title');
+        const filterInput = document.getElementById('filter-input');
 
         const TARGET_URL = "https://molecool.id/live-cctv/";
         const MY_WORKER_URL = "https://nyam.ta-danial.workers.dev"; // Proxy Anda untuk gambar
         const PAGE_PROXY_URL = "https://api.codetabs.com/v1/proxy/"; // Proxy untuk halaman
         const REFRESH_INTERVAL_MS = 60000;
+        const AUTO_PAUSE_LIMIT = 50;
 
         const displayedCCTVs = {};
         let isFetching = false;
+        let isPaused = false;
         let countdownInterval;
         let autoFetchInterval;
         let imageRefreshInterval; 
@@ -111,6 +131,7 @@
         }).replace('GMT+7', 'WIB');
 
         const startCountdown = () => {
+            if (isPaused) return;
             clearInterval(countdownInterval);
             let timeLeft = REFRESH_INTERVAL_MS / 1000;
             
@@ -127,15 +148,15 @@
         };
         
         const renderSortedCCTVs = () => {
+            const searchTerm = filterInput.value.toLowerCase();
             const cctvArray = Object.values(displayedCCTVs);
 
-            cctvArray.sort((a, b) => {
-                return a.title.localeCompare(b.title);
-            });
+            const filteredAndSorted = cctvArray
+                .filter(cctv => cctv.title.toLowerCase().includes(searchTerm))
+                .sort((a, b) => a.title.localeCompare(b.title));
 
             outputElement.innerHTML = '';
-
-            cctvArray.forEach(cctv => {
+            filteredAndSorted.forEach(cctv => {
                 outputElement.appendChild(cctv.element);
             });
             
@@ -143,6 +164,7 @@
         };
 
         const refreshAllImages = () => {
+            if (isPaused) return;
             console.log("Refreshing all visible CCTV images...");
             const now = Date.now();
             for (const cctv of Object.values(displayedCCTVs)) {
@@ -150,7 +172,6 @@
                 if (imgElement) {
                     const originalUrl = cctv.imageUrl.split('&_cacheBust=')[0];
                     const urlWithCacheBust = `${originalUrl}&_cacheBust=${now}`;
-                    // Gunakan proxy worker Anda untuk merefresh gambar
                     imgElement.src = `${MY_WORKER_URL}/?quest=${encodeURIComponent(urlWithCacheBust)}`;
                 }
             }
@@ -166,7 +187,6 @@
                  statusIndicator.innerHTML = '<div id="loader-update"></div> <span class="text-gray-400">Memeriksa pembaruan...</span>';
             }
             
-            // Gunakan Codetabs untuk mengambil halaman HTML
             const proxyUrl = `${PAGE_PROXY_URL}?quest=${TARGET_URL}`;
             
             const fetchTime = new Date();
@@ -206,12 +226,12 @@
                     if (!displayedCCTVs[title]) {
                         newImagesFound++;
                         const cardElement = createCCTVCard(imageUrl, title, fetchTime, liveUrl);
+                        cardElement.classList.add('newly-added');
+                        setTimeout(() => cardElement.classList.remove('newly-added'), 10000);
+
                         displayedCCTVs[title] = {
-                            title: title,
-                            imageUrl: imageUrl, // Simpan URL asli
-                            liveUrl: liveUrl,
-                            element: cardElement,
-                            lastSeen: fetchTime
+                            title: title, imageUrl: imageUrl, liveUrl: liveUrl,
+                            element: cardElement, lastSeen: fetchTime
                         };
                     } else {
                         const existingCCTV = displayedCCTVs[title];
@@ -222,10 +242,10 @@
                         const timeElement = existingCCTV.element.querySelector('.last-seen-time');
                         if(timeElement) timeElement.textContent = formatTime(fetchTime);
                         const img = existingCCTV.element.querySelector('img');
-                        // Gunakan proxy Anda untuk memperbarui gambar jika URL berubah
                         const proxiedImageUrl = `${MY_WORKER_URL}/?quest=${encodeURIComponent(imageUrl)}`;
                         if (img && img.src !== proxiedImageUrl) img.src = proxiedImageUrl;
-
+                        const imageLink = existingCCTV.element.querySelector('a');
+                        if (imageLink && imageLink.href !== imageUrl) imageLink.href = imageUrl;
                         const liveLink = existingCCTV.element.querySelector('.live-link');
                         if (liveLink && liveLink.href !== liveUrl) liveLink.href = liveUrl;
                     }
@@ -234,7 +254,10 @@
                 renderSortedCCTVs();
                 success = true;
                 
-                if (!document.body.classList.contains('initial-loading')) {
+                if (Object.keys(displayedCCTVs).length >= AUTO_PAUSE_LIMIT && !isPaused) {
+                    console.log(`Auto-pausing updates, reached ${AUTO_PAUSE_LIMIT} CCTVs.`);
+                    pauseUpdates(`Batas ${AUTO_PAUSE_LIMIT} CCTV tercapai.`);
+                } else if (!document.body.classList.contains('initial-loading')) {
                     if (imagesProcessed === 0) {
                         statusIndicator.innerHTML = `<span class="text-yellow-400 font-semibold">!</span> <span class="text-gray-300">Tidak ada gambar CCTV ditemukan.</span>`;
                     } else {
@@ -263,12 +286,9 @@
         const createCCTVCard = (imageUrl, title, time, liveUrl) => {
             const card = document.createElement('div');
             card.className = 'cctv-card bg-gray-800 rounded-lg shadow-lg overflow-hidden flex flex-col';
-            
-            // Gunakan proxy worker Anda untuk menampilkan gambar
             const proxiedImageUrl = `${MY_WORKER_URL}/?quest=${encodeURIComponent(imageUrl)}`;
-
             card.innerHTML = `
-                <a href="${proxiedImageUrl}" target="_blank">
+                <a href="${imageUrl}" target="_blank">
                     <img src="${proxiedImageUrl}" alt="${title}" class="w-full h-40 object-cover" loading="lazy">
                 </a>
                 <div class="p-4 flex-grow flex flex-col justify-between">
@@ -281,9 +301,7 @@
                     <p class="text-xs text-gray-400">
                         last open: <span class="font-medium text-gray-300 last-seen-time">${formatTime(time)}</span>
                     </p>
-                </div>
-            `;
-            
+                </div>`;
             const img = card.querySelector('img');
             img.onerror = () => {
                 console.warn(`Gambar gagal dimuat (URL expired?), menghapus: ${title}`);
@@ -297,15 +315,43 @@
             return card;
         };
         
+        const pauseUpdates = (reason = '') => {
+            if (isPaused) return;
+            isPaused = true;
+            clearInterval(autoFetchInterval);
+            clearInterval(imageRefreshInterval);
+            clearInterval(countdownInterval);
+            pauseToggleBtn.textContent = 'Resume';
+            pauseToggleBtn.classList.replace('bg-yellow-500', 'bg-green-600');
+            pauseToggleBtn.classList.replace('hover:bg-yellow-600', 'hover:bg-green-700');
+            countdownElement.textContent = '';
+            statusIndicator.innerHTML = `<span class="text-yellow-400 font-semibold">⏸</span> <span class="text-gray-300">Auto-update dipause. ${reason}</span>`;
+            console.log("Updates paused.", reason);
+        };
+        
+        const resumeUpdates = () => {
+            if (!isPaused) return;
+            isPaused = false;
+            pauseToggleBtn.textContent = 'Pause';
+            pauseToggleBtn.classList.replace('bg-green-600', 'bg-yellow-500');
+            pauseToggleBtn.classList.replace('hover:bg-green-700', 'hover:bg-yellow-600');
+            console.log("Updates resumed.");
+            triggerManualUpdate();
+        };
+
         const triggerManualUpdate = () => {
             if (isFetching) return;
             console.log("Manual update triggered.");
             clearInterval(autoFetchInterval);
+            clearInterval(imageRefreshInterval);
             clearInterval(countdownInterval);
             countdownElement.textContent = ''; 
             fetchAndProcessCCTVs().finally(() => {
-                console.log("Manual update finished. Restarting auto-fetch timer.");
-                autoFetchInterval = setInterval(fetchAndProcessCCTVs, REFRESH_INTERVAL_MS);
+                console.log("Manual update finished. Restarting timers if not paused.");
+                if (!isPaused) {
+                    autoFetchInterval = setInterval(fetchAndProcessCCTVs, REFRESH_INTERVAL_MS);
+                    imageRefreshInterval = setInterval(refreshAllImages, REFRESH_INTERVAL_MS);
+                }
             });
         };
 
@@ -316,32 +362,35 @@
 
             for (let attempt = 1; attempt <= INITIAL_FETCH_COUNT; attempt++) {
                 statusIndicator.innerHTML = `<div id="loader-update"></div> <span class="text-gray-400">Mengumpulkan feed... (${attempt}/${INITIAL_FETCH_COUNT})</span>`;
-                
-                console.log(`Initial data gathering, run #${attempt}...`);
                 await fetchAndProcessCCTVs();
-
-                if (attempt < INITIAL_FETCH_COUNT) {
-                    await delay(FETCH_DELAY_MS);
+                if (isPaused) { // Jika auto-pause terjadi saat collecting
+                    console.log("Auto-pause triggered during initial collection.");
+                    break; 
                 }
+                if (attempt < INITIAL_FETCH_COUNT) await delay(FETCH_DELAY_MS);
             }
             
             document.body.classList.remove('initial-loading');
             console.log("Initial data gathering complete.");
 
             if (Object.keys(displayedCCTVs).length === 0) {
-                console.error("Gagal menemukan CCTV setelah semua percobaan.");
                 statusIndicator.innerHTML = `<span class="text-red-500 font-semibold">✖</span> <span class="text-gray-300">Gagal memuat feed awal.</span>`;
-            } else {
+            } else if (!isPaused) {
                 console.log("Starting periodic updates.");
-                await fetchAndProcessCCTVs();
+                await fetchAndProcessCCTVs(); // Panggil sekali lagi untuk status yang benar
                 autoFetchInterval = setInterval(fetchAndProcessCCTVs, REFRESH_INTERVAL_MS);
                 imageRefreshInterval = setInterval(refreshAllImages, REFRESH_INTERVAL_MS);
             }
         };
-
+        
+        filterInput.addEventListener('input', renderSortedCCTVs);
+        pauseToggleBtn.addEventListener('click', () => {
+            if(isPaused) resumeUpdates();
+            else pauseUpdates();
+        });
         manualUpdateBtn.addEventListener('click', triggerManualUpdate);
-
         initialFetchCollector();
     </script>
 </body>
 </html>
+
